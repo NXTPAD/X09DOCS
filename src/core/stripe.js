@@ -1,7 +1,11 @@
-// Stripe billing: Checkout (subscribe), Customer Portal (manage/cancel/switch), webhook (sync plan)
-import { json, readJson, hmacHex, safeEqual, HttpError } from "./util.js";
-import { requireUser } from "./auth.js";
-import { PLANS, PLAN_ORDER, ACTIVE_STATUSES } from "./plans.js";
+// X09 billing (Stripe) — shared by every X09 site.
+// One Stripe customer per X09 account; one subscription per product (X09 AI, X09 Docs).
+// Any site can start a checkout for any product, and every site's webhook understands every
+// product, so it doesn't matter which site's webhook endpoint Stripe calls.
+import { json, readJson, hmacHex, safeEqual, HttpError, now } from "./util.js";
+import { requireUser, activePlan } from "./auth.js";
+import { PRODUCTS, PRODUCT_ORDER, ACTIVE_STATUSES } from "./catalog.js";
+import { SITE } from "../site.js";
 
 const API = "https://api.stripe.com/v1";
 
@@ -16,14 +20,11 @@ function encode(obj, prefix, out = new URLSearchParams()) {
   return out;
 }
 
-async function stripe(env, method, path, params) {
+export async function stripe(env, method, path, params) {
   if (!env.STRIPE_SECRET_KEY) throw new HttpError(500, "Billing isn't configured yet (missing STRIPE_SECRET_KEY).");
   const res = await fetch(API + path, {
     method,
-    headers: {
-      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-      "content-type": "application/x-www-form-urlencoded",
-    },
+    headers: { authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, "content-type": "application/x-www-form-urlencoded" },
     body: params ? encode(params).toString() : undefined,
   });
   const data = await res.json();
@@ -32,18 +33,21 @@ async function stripe(env, method, path, params) {
 }
 
 // ---------- Price lookup ----------
-// Uses STRIPE_PRICE_* vars if set; otherwise finds the active monthly price of the Stripe
-// product whose name matches each plan ("X09 Docs Solo", "X09 Docs Pro", "X09 Docs Business"). Cached 10 min.
+// For every plan: the STRIPE_PRICE_* var if set, otherwise the newest active monthly price of the
+// Stripe product whose name matches the plan's `stripeProduct`. Cached for 10 minutes.
 let priceCache = null;
 const isRealPriceId = (v) => typeof v === "string" && /^price_(?!REPLACE)/.test(v);
+const allPlans = () => PRODUCT_ORDER.flatMap((product) => PRODUCTS[product].order.map((plan) => ({ product, plan, def: PRODUCTS[product].plans[plan] })));
+const slot = (product, plan) => `${product}:${plan}`;
 
 export async function priceMap(env) {
-  if (PLAN_ORDER.every((k) => isRealPriceId(env[PLANS[k].priceEnv]))) {
-    return Object.fromEntries(PLAN_ORDER.map((k) => [k, env[PLANS[k].priceEnv]]));
+  const plans = allPlans();
+  if (plans.every((p) => isRealPriceId(env[p.def.priceEnv]))) {
+    return Object.fromEntries(plans.map((p) => [slot(p.product, p.plan), env[p.def.priceEnv]]));
   }
   if (priceCache && priceCache.expires > Date.now()) return priceCache.map;
   const map = {};
-  for (const k of PLAN_ORDER) if (isRealPriceId(env[PLANS[k].priceEnv])) map[k] = env[PLANS[k].priceEnv];
+  for (const p of plans) if (isRealPriceId(env[p.def.priceEnv])) map[slot(p.product, p.plan)] = env[p.def.priceEnv];
   let url = "/prices?active=true&type=recurring&limit=100&expand[]=data.product";
   const prices = [];
   for (let page = 0; page < 5; page++) {
@@ -53,11 +57,12 @@ export async function priceMap(env) {
     url = `/prices?active=true&type=recurring&limit=100&expand[]=data.product&starting_after=${r.data[r.data.length - 1].id}`;
   }
   const norm = (s) => String(s || "").trim().toLowerCase();
-  for (const k of PLAN_ORDER) {
+  for (const p of plans) {
+    const k = slot(p.product, p.plan);
     if (map[k]) continue;
-    const want = norm(PLANS[k].product);
+    const want = norm(p.def.stripeProduct);
     const matches = prices.filter(
-      (p) => p.product && typeof p.product === "object" && p.product.active !== false && norm(p.product.name) === want && p.recurring?.interval === "month"
+      (x) => x.product && typeof x.product === "object" && x.product.active !== false && norm(x.product.name) === want && x.recurring?.interval === "month"
     );
     if (matches.length) map[k] = matches.sort((a, b) => b.created - a.created)[0].id;
   }
@@ -66,66 +71,67 @@ export async function priceMap(env) {
 }
 
 async function planForPrice(env, priceId) {
+  if (!priceId) return null;
   const map = await priceMap(env);
-  return PLAN_ORDER.find((k) => map[k] === priceId) || null;
+  const hit = Object.entries(map).find(([, id]) => id === priceId);
+  if (!hit) return null;
+  const [product, plan] = hit[0].split(":");
+  return { product, plan };
 }
 
 async function ensureCustomer(env, user) {
   if (user.stripe_customer_id) return user.stripe_customer_id;
-  const c = await stripe(env, "POST", "/customers", { email: user.email, metadata: { user_id: user.id, app: "x09-docs" } });
+  const c = await stripe(env, "POST", "/customers", { email: user.email, metadata: { user_id: user.id, x09: "account" } });
   await env.DB.prepare("UPDATE users SET stripe_customer_id = ? WHERE id = ?").bind(c.id, user.id).run();
   return c.id;
 }
 
 const origin = (request) => new URL(request.url).origin;
 
-// POST /api/billing/checkout  { plan: "solo" | "pro" | "business" }
+// POST /api/billing/checkout  { plan, product? }  (product defaults to the site you're on)
 export async function checkout(request, env) {
   const user = await requireUser(request, env);
   const body = await readJson(request);
+  const product = PRODUCTS[body?.product] ? body.product : SITE;
   const key = body?.plan;
-  const plan = PLANS[key];
+  const plan = PRODUCTS[product]?.plans[key];
   if (!plan) return json({ error: "Unknown plan." }, 400);
-  const price = (await priceMap(env))[key];
-  if (!price) return json({ error: `Billing isn't set up yet: no active monthly Stripe price found for a product named "${plan.product}".` }, 500);
+  const price = (await priceMap(env))[slot(product, key)];
+  if (!price) return json({ error: `Billing isn't set up yet: no active monthly Stripe price found for a product named "${plan.stripeProduct}".` }, 500);
 
-  // Already subscribed? Send them to the portal to switch plans instead of double-subscribing.
-  if (user.stripe_subscription_id && ACTIVE_STATUSES.has(user.sub_status)) {
-    return portal(request, env, user);
-  }
+  // Already subscribed to this product? Switch plans in the portal instead of double-subscribing.
+  if (activePlan(user, product) && user.subs[product]?.stripe_subscription_id) return portal(request, env, user);
 
   const customer = await ensureCustomer(env, user);
+  const back = `${origin(request)}/?checkout=success&product=${product}`;
   const session = await stripe(env, "POST", "/checkout/sessions", {
     mode: "subscription",
     customer,
     client_reference_id: user.id,
     line_items: [{ price, quantity: 1 }],
     allow_promotion_codes: "true",
-    subscription_data: { metadata: { user_id: user.id, plan: key, app: "x09-docs" } },
-    success_url: `${origin(request)}/?checkout=success`,
+    subscription_data: { metadata: { user_id: user.id, product, plan: key, app: `x09-${product}` } },
+    success_url: back,
     cancel_url: `${origin(request)}/?checkout=cancel`,
   });
   return json({ url: session.url });
 }
 
-// X09 Docs gets its own Customer Portal configuration, so "switch plan" only offers the
-// X09 Docs plans (not X09 AI's) even though both apps share one Stripe account.
-// Created automatically on first use and remembered in the database.
+// One Customer Portal configuration for all X09 plans, created on first use and remembered.
 async function portalConfig(env) {
-  const saved = await env.DB.prepare("SELECT value FROM meta WHERE key = 'portal_config'").first();
+  const saved = await env.DB.prepare("SELECT value FROM meta WHERE key = 'portal_config_x09'").first();
   if (saved?.value) return saved.value;
   const map = await priceMap(env);
   const byProduct = {};
-  for (const k of PLAN_ORDER) {
-    if (!map[k]) continue;
-    const price = await stripe(env, "GET", `/prices/${map[k]}`);
+  for (const id of Object.values(map)) {
+    const price = await stripe(env, "GET", `/prices/${id}`);
     const prod = typeof price.product === "string" ? price.product : price.product?.id;
-    if (prod) (byProduct[prod] ||= []).push(map[k]);
+    if (prod) (byProduct[prod] ||= []).push(id);
   }
   const products = Object.entries(byProduct).map(([product, prices]) => ({ product, prices }));
   if (!products.length) return null;
   const cfg = await stripe(env, "POST", "/billing_portal/configurations", {
-    business_profile: { headline: "X09 Docs — manage your plan" },
+    business_profile: { headline: "X09 — manage your plans" },
     features: {
       invoice_history: { enabled: "true" },
       payment_method_update: { enabled: "true" },
@@ -133,9 +139,9 @@ async function portalConfig(env) {
       subscription_cancel: { enabled: "true", mode: "at_period_end" },
       subscription_update: { enabled: "true", default_allowed_updates: ["price"], proration_behavior: "create_prorations", products },
     },
-    metadata: { app: "x09-docs" },
+    metadata: { app: "x09" },
   });
-  await env.DB.prepare("INSERT INTO meta (key, value) VALUES ('portal_config', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(cfg.id).run();
+  await env.DB.prepare("INSERT INTO meta (key, value) VALUES ('portal_config_x09', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(cfg.id).run();
   return cfg.id;
 }
 
@@ -153,32 +159,31 @@ export async function portal(request, env, preloadedUser) {
   return json({ url: session.url });
 }
 
+// Used when an account is deleted: cancel every active X09 subscription immediately
+export async function cancelAllSubscriptions(env, user) {
+  for (const s of Object.values(user.subs || {})) {
+    if (s.stripe_subscription_id && ACTIVE_STATUSES.has(s.status)) {
+      await stripe(env, "DELETE", `/subscriptions/${s.stripe_subscription_id}`);
+    }
+  }
+}
+
 // ---------- Webhook ----------
 async function verifySignature(request, env, payload) {
   const header = request.headers.get("stripe-signature") || "";
-  const parts = Object.fromEntries(
-    header.split(",").map((p) => {
-      const i = p.indexOf("=");
-      return [p.slice(0, i).trim(), p.slice(i + 1)];
-    })
-  );
-  const t = parts.t;
-  const sigs = header.split(",").filter((p) => p.trim().startsWith("v1=")).map((p) => p.trim().slice(3));
+  const t = header.split(",").map((p) => p.trim()).find((p) => p.startsWith("t="))?.slice(2);
+  const sigs = header.split(",").map((p) => p.trim()).filter((p) => p.startsWith("v1=")).map((p) => p.slice(3));
   if (!t || !sigs.length || !env.STRIPE_WEBHOOK_SECRET) return false;
   if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return false; // 5-minute tolerance
   const expected = await hmacHex(env.STRIPE_WEBHOOK_SECRET, `${t}.${payload}`);
   return sigs.some((s) => safeEqual(s, expected));
 }
 
-async function syncSubscription(env, sub, userIdHint) {
-  const priceId = sub.items?.data?.[0]?.price?.id;
-  const plan = await planForPrice(env, priceId);
-  const periodEnd = (sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? null);
-  const active = ACTIVE_STATUSES.has(sub.status);
-  // Stripe sends every event on the account to every webhook. Ignore subscriptions that
-  // belong to other X09 apps (e.g. X09 AI) sharing the same Stripe account.
-  if (sub.metadata?.app && sub.metadata.app !== "x09-docs") return;
-  if (!plan && active) return;
+export async function syncSubscription(env, sub, userIdHint) {
+  const found = await planForPrice(env, sub.items?.data?.[0]?.price?.id);
+  if (!found) return; // not an X09 plan (some other product on this Stripe account)
+  const { product, plan } = found;
+  const periodEnd = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? null;
 
   let user = null;
   const uid = userIdHint || sub.metadata?.user_id;
@@ -186,11 +191,22 @@ async function syncSubscription(env, sub, userIdHint) {
   if (!user && sub.customer) user = await env.DB.prepare("SELECT id FROM users WHERE stripe_customer_id = ?").bind(sub.customer).first();
   if (!user) return;
 
-  await env.DB.prepare(
-    "UPDATE users SET plan = ?, sub_status = ?, stripe_subscription_id = ?, stripe_customer_id = COALESCE(stripe_customer_id, ?), current_period_end = ? WHERE id = ?"
-  )
-    .bind(active ? plan : null, sub.status, sub.id, sub.customer || null, periodEnd ? periodEnd * 1000 : null, user.id)
-    .run();
+  // Don't let an old, ended subscription overwrite a newer active one for the same product
+  const existing = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND product = ?").bind(user.id, product).first();
+  if (existing && existing.stripe_subscription_id && existing.stripe_subscription_id !== sub.id &&
+      ACTIVE_STATUSES.has(existing.status) && !ACTIVE_STATUSES.has(sub.status)) return;
+
+  await env.DB.batch([
+    // If this subscription was switched to another product in the portal, drop its old row
+    env.DB.prepare("DELETE FROM subscriptions WHERE stripe_subscription_id = ? AND product != ?").bind(sub.id, product),
+    env.DB.prepare(
+      `INSERT INTO subscriptions (user_id, product, plan, status, stripe_subscription_id, current_period_end, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, product) DO UPDATE SET plan = excluded.plan, status = excluded.status,
+         stripe_subscription_id = excluded.stripe_subscription_id, current_period_end = excluded.current_period_end, updated_at = excluded.updated_at`
+    ).bind(user.id, product, plan, sub.status, sub.id, periodEnd ? periodEnd * 1000 : null, now()),
+    env.DB.prepare("UPDATE users SET stripe_customer_id = COALESCE(stripe_customer_id, ?) WHERE id = ?").bind(sub.customer || null, user.id),
+  ]);
 }
 
 // POST /api/stripe/webhook
@@ -203,7 +219,6 @@ export async function webhook(request, env) {
   switch (event.type) {
     case "checkout.session.completed": {
       if (obj.mode !== "subscription" || !obj.subscription) break;
-      // Fetch the subscription so we get price + status
       const sub = await stripe(env, "GET", `/subscriptions/${obj.subscription}`);
       await syncSubscription(env, sub, obj.client_reference_id);
       break;

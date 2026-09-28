@@ -1,28 +1,18 @@
 /**
  * X09 Docs — Cloudflare Worker (router)
  *
- *  Accounts   POST /api/auth/signup | login | logout | delete | password     POST /api/profile     GET /api/me
- *  Plans      GET  /api/plans
- *  Billing    POST /api/billing/checkout | /api/billing/portal               POST /api/stripe/webhook
+ *  Shared X09 routes (src/core/router.js): accounts, profile, plans, billing, Stripe webhook
  *  Business   GET/PUT /api/business
  *  Docs       GET/POST /api/docs     GET/PUT/DELETE /api/docs/:id     POST /api/docs/:id/duplicate
- *  AI         POST /api/ai/draft | /api/ai/rewrite
+ *  AI         POST /api/ai/draft | /api/ai/rewrite   (Claude)
  *  Clients    GET /api/share/:sid     POST /api/share/:sid/accept | /decline     page: /d/:sid
  *  Everything else → the app in /public
  */
-import { json, HttpError } from "./util.js";
-import { signup, login, logout, me, deleteAccount, updateProfile, changePassword } from "./auth.js";
-import { checkout, portal, webhook } from "./stripe.js";
-import { publicPlans } from "./plans.js";
+import { json, HttpError } from "./core/util.js";
+import { coreRoute } from "./core/router.js";
 import { listDocs, getDoc, createDoc, updateDoc, duplicateDoc, deleteDoc, getBusiness, saveBusiness } from "./docs.js";
 import { aiDraft, aiRewrite } from "./ai.js";
 import { viewShared, acceptShared, declineShared } from "./share.js";
-
-// Block cross-site form posts: state-changing requests must come from our own origin
-function sameOrigin(request) {
-  const o = request.headers.get("origin");
-  return !o || o === new URL(request.url).origin;
-}
 
 async function route(request, env) {
   const url = new URL(request.url);
@@ -38,22 +28,8 @@ async function route(request, env) {
     return res;
   }
 
-  if (p === "/api/stripe/webhook" && m === "POST") return webhook(request, env);
-  if (m !== "GET" && m !== "HEAD" && !sameOrigin(request)) return json({ error: "Forbidden" }, 403);
-
-  if (p === "/api/health") return json({ ok: true, service: "x09-docs", time: new Date().toISOString() });
-  if (p === "/api/plans" && m === "GET") return json({ plans: publicPlans() });
-
-  if (p === "/api/auth/signup" && m === "POST") return signup(request, env);
-  if (p === "/api/auth/login" && m === "POST") return login(request, env);
-  if (p === "/api/auth/logout" && m === "POST") return logout(request, env);
-  if (p === "/api/auth/delete" && m === "POST") return deleteAccount(request, env);
-  if (p === "/api/auth/password" && m === "POST") return changePassword(request, env);
-  if (p === "/api/profile" && m === "POST") return updateProfile(request, env);
-  if (p === "/api/me" && m === "GET") return me(request, env);
-
-  if (p === "/api/billing/checkout" && m === "POST") return checkout(request, env);
-  if (p === "/api/billing/portal" && m === "POST") return portal(request, env);
+  const core = await coreRoute(request, env);
+  if (core) return core;
 
   if (p === "/api/business" && m === "GET") return getBusiness(request, env);
   if (p === "/api/business" && m === "PUT") return saveBusiness(request, env);

@@ -15,28 +15,32 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/d/*"]
 
-# Workers AI drafts the documents (same engine as X09 AI)
-[ai]
-binding = "AI"
-
-# Database for accounts, documents, usage.
-# The GitHub deploy finds this database by name and fills in the ID automatically.
-# (Deploying by hand instead? Run: npx wrangler d1 create x09-docs-db, then paste the ID below.)
+# The SHARED X09 database (accounts, profiles, plans, chats, documents) — the same
+# x09-db is bound by X09 Hub, X09 AI and X09 Docs, so one account works everywhere.
+# The build step (scripts/setup-db.mjs) finds this database by name and fills in the ID.
+# (Deploying by hand instead? Run: npx wrangler d1 list, then paste x09-db's ID below.)
 [[d1_databases]]
 binding = "DB"
-database_name = "x09-docs-db"
+database_name = "x09-db"
 database_id = "PASTE_YOUR_D1_DATABASE_ID"
 migrations_dir = "migrations"
 
 [vars]
-AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+# Claude models (Anthropic API): drafts use Deep, rewrites use Fast
+AI_MODEL_FAST = "claude-haiku-4-5"
+AI_MODEL_DEEP = "claude-sonnet-5"
 
 # Stripe Price IDs — OPTIONAL. Leave as-is and the app finds the active monthly price of the
-# Stripe products named "X09 Docs Solo", "X09 Docs Pro" and "X09 Docs Business" automatically.
+# Stripe products named in src/core/catalog.js automatically
+# ("Pilot", "Commander", "Fleet", "X09 Docs Solo", "X09 Docs Pro", "X09 Docs Business").
+STRIPE_PRICE_PILOT = "price_REPLACE_ME"
+STRIPE_PRICE_COMMANDER = "price_REPLACE_ME"
+STRIPE_PRICE_FLEET = "price_REPLACE_ME"
 STRIPE_PRICE_SOLO = "price_REPLACE_ME"
 STRIPE_PRICE_PRO = "price_REPLACE_ME"
 STRIPE_PRICE_BUSINESS = "price_REPLACE_ME"
 
 # Secrets — set with `npx wrangler secret put NAME` (never commit these):
+#   ANTHROPIC_API_KEY       sk-ant-...  (console.anthropic.com → API keys)
 #   STRIPE_SECRET_KEY       sk_live_... (or sk_test_... while testing)
 #   STRIPE_WEBHOOK_SECRET   whsec_...   (from the webhook endpoint for docs.x09hub.com)

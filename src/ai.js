@@ -1,28 +1,24 @@
-// AI drafting (Workers AI): turn a plain-English job description into a structured document,
-// and rewrite individual sections. Each call uses 1 AI credit from the monthly plan allowance.
-import { json, month, readJson, HttpError } from "./util.js";
-import { requireUser, hasAccess } from "./auth.js";
-import { PLANS } from "./plans.js";
+// AI drafting (Claude via the Anthropic API): turn a plain-English job description into a structured
+// document (Claude Sonnet 5), and rewrite individual sections (Claude Haiku 4.5).
+// Each call uses 1 AI credit from the monthly plan allowance.
+import { json, readJson, HttpError } from "./core/util.js";
+import { requireUser, hasAccess, activePlan, consume as consumeMeter } from "./core/auth.js";
+import { PRODUCTS } from "./core/catalog.js";
+import { claude, textOf } from "./core/anthropic.js";
 import { TYPES, loadBusiness, cleanItems, cleanSections, today } from "./docs.js";
 
 const MAX_PROMPT = 4000;
 
 // ---------- Usage ----------
-async function consume(env, user) {
-  const plan = PLANS[user.plan];
-  const period = month();
-  await env.DB.prepare("INSERT INTO usage (user_id, period, ai) VALUES (?, ?, 0) ON CONFLICT(user_id, period) DO NOTHING").bind(user.id, period).run();
-  const r = await env.DB.prepare("UPDATE usage SET ai = ai + 1 WHERE user_id = ? AND period = ? AND ai < ?").bind(user.id, period, plan.ai).run();
-  if (!r.meta || !r.meta.changes) {
-    throw new HttpError(402, `You've used all ${plan.ai} AI drafts in your ${plan.name} plan this month. You can still create and edit documents by hand — or upgrade for more.`, { code: "limit_reached" });
-  }
-  return async () => {
-    await env.DB.prepare("UPDATE usage SET ai = MAX(ai - 1, 0) WHERE user_id = ? AND period = ?").bind(user.id, period).run();
-  };
+function consume(env, user) {
+  const plan = PRODUCTS.docs.plans[activePlan(user, "docs")];
+  const limit = plan.limits.docs;
+  return consumeMeter(env, user.id, "docs", limit,
+    `You've used all ${limit} AI drafts in your ${plan.name} plan this month. You can still create and edit documents by hand — or upgrade for more.`);
 }
 
 function gate(user) {
-  if (!hasAccess(user)) throw new HttpError(402, "Choose a plan to use AI drafting.", { code: "plan_required" });
+  if (!hasAccess(user, "docs")) throw new HttpError(402, "Choose a plan to use AI drafting.", { code: "plan_required" });
 }
 
 // ---------- Prompts ----------
@@ -79,7 +75,7 @@ function draftSystem(type, biz) {
     "Only fill `client` with details the user actually gave (leave fields as empty strings otherwise).",
     "`title` is a short document title like 'Roof replacement — 24 Oak St' (max 70 characters), without the word Invoice/Estimate/etc.",
     "Only set `taxRate` (a percent) if the user states one; otherwise 0.",
-    "Respond with ONLY a JSON object with keys: title, client {name, company, email, address}, items [{description, qty, rate}], sections [{heading, body}], notes, terms, taxRate. No markdown fences, no commentary.",
+    "Return the document by calling the write_document tool.",
   ].filter(Boolean).join("\n");
 }
 
@@ -92,18 +88,20 @@ function extractJson(text) {
   try { return JSON.parse(s.slice(a, b + 1)); } catch { return null; }
 }
 
+// Claude fills in the document through a forced tool call, so the result is always valid JSON
 async function runJson(env, system, user) {
-  const messages = [{ role: "system", content: system }, { role: "user", content: user }];
-  const model = env.AI_MODEL;
-  try {
-    const out = await env.AI.run(model, { messages, max_tokens: 2800, temperature: 0.4, response_format: { type: "json_schema", json_schema: SCHEMA } });
-    const j = extractJson(out?.response);
-    if (j) return j;
-  } catch (err) {
-    console.warn("JSON mode failed, retrying in plain mode:", err?.message);
-  }
-  const out = await env.AI.run(model, { messages, max_tokens: 2800, temperature: 0.4 });
-  const j = extractJson(out?.response);
+  const msg = await claude(env, {
+    kind: "deep",
+    system,
+    messages: [{ role: "user", content: user }],
+    max_tokens: 4096,
+    temperature: 0.4,
+    tools: [{ name: "write_document", description: "Return the drafted document.", input_schema: SCHEMA }],
+    tool_choice: { type: "tool", name: "write_document" },
+  });
+  const call = (msg.content || []).find((b) => b.type === "tool_use");
+  if (call?.input && typeof call.input === "object") return call.input;
+  const j = extractJson(textOf(msg));
   if (!j) throw new Error("Model did not return JSON");
   return j;
 }
@@ -136,10 +134,7 @@ export async function aiDraft(request, env) {
   let raw;
   try {
     if (env.MOCK_AI === "1") raw = mockDraft(type, prompt);
-    else {
-      if (!env.AI) throw new HttpError(500, "The AI engine isn't connected (missing [ai] binding).");
-      raw = await runJson(env, draftSystem(type, await loadBusiness(env, user.id)), prompt);
-    }
+    else raw = await runJson(env, draftSystem(type, await loadBusiness(env, user.id)), prompt);
   } catch (err) {
     await refund();
     if (err instanceof HttpError) throw err;
@@ -176,16 +171,14 @@ export async function aiRewrite(request, env) {
     let out;
     if (env.MOCK_AI === "1") out = `${text} (rewritten in test mode)`;
     else {
-      if (!env.AI) throw new HttpError(500, "The AI engine isn't connected (missing [ai] binding).");
-      const r = await env.AI.run(env.AI_MODEL, {
-        messages: [
-          { role: "system", content: "You edit text for business documents (invoices, estimates, proposals, contracts). Follow the instruction, keep every fact, name, number and price unchanged, and keep [BRACKETED PLACEHOLDERS]. Reply with ONLY the rewritten text — no preamble, no quotes, no markdown headings. Plain '- ' bullets are fine." },
-          { role: "user", content: `${context ? `Section: ${context}\n` : ""}Instruction: ${instruction}\n\nText:\n${text}` },
-        ],
+      const r = await claude(env, {
+        kind: "fast",
+        system: "You edit text for business documents (invoices, estimates, proposals, contracts). Follow the instruction, keep every fact, name, number and price unchanged, and keep [BRACKETED PLACEHOLDERS]. Reply with ONLY the rewritten text — no preamble, no quotes, no markdown headings. Plain '- ' bullets are fine.",
+        messages: [{ role: "user", content: `${context ? `Section: ${context}\n` : ""}Instruction: ${instruction}\n\nText:\n${text}` }],
         max_tokens: 1800,
         temperature: 0.4,
       });
-      out = String(r?.response || "").trim().replace(/^["“]|["”]$/g, "");
+      out = textOf(r).trim().replace(/^["“]|["”]$/g, "");
       if (!out) throw new Error("empty");
     }
     return json({ text: out.slice(0, 8000) });

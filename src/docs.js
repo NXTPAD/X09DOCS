@@ -1,6 +1,6 @@
 // Documents: invoices, estimates, proposals/quotes, contracts — stored per account in D1
-import { json, now, randomId, readJson, HttpError } from "./util.js";
-import { requireUser, hasAccess } from "./auth.js";
+import { json, now, randomId, readJson, HttpError } from "./core/util.js";
+import { requireUser, hasAccess } from "./core/auth.js";
 
 export const TYPES = {
   invoice:  { label: "Invoice",  prefix: "INV", items: true,  sections: false, signable: false },

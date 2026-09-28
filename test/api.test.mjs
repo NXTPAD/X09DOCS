@@ -36,7 +36,7 @@ try {
   r = await api("/api/docs", { method: "POST", body: { type: "invoice" } }); assert.equal(r.status, 401); ok("creating docs requires sign-in");
 
   r = await api("/api/auth/signup", { method: "POST", body: { email: "Roofer@Example.com", password: "shingle-2026" } });
-  assert.equal(r.status, 201); assert.ok(cookie.startsWith("x09docs_session="));
+  assert.equal(r.status, 201); assert.ok(cookie.startsWith("x09_sid="));
   const userId = r.data.user.id; ok("signup creates account + session");
 
   r = await api("/api/docs", { method: "POST", body: { type: "invoice" } });
@@ -54,11 +54,13 @@ try {
   assert.equal(cs.params["line_items[0][price]"], "price_pro");
   assert.equal(cs.params["subscription_data[metadata][app]"], "x09-docs"); ok("checkout finds 'X09 Docs Pro' price by product name, tags app");
 
-  // Webhook from another X09 app on the same Stripe account must be ignored
+  // An X09 AI subscription lands on the same shared account, but doesn't unlock X09 Docs
   const foreign = { id: "sub_ai", customer: "cus_ai", status: "active", metadata: { user_id: userId, app: "x09-ai" }, items: { data: [{ price: { id: "price_pilot" } }] } };
   let evt = JSON.stringify({ type: "customer.subscription.updated", data: { object: foreign } });
   await api("/api/stripe/webhook", { method: "POST", body: evt, headers: signed(evt) });
-  assert.equal((await api("/api/me")).data.user.plan, null); ok("ignores X09 AI subscription events");
+  let mine = (await api("/api/me")).data.user;
+  assert.equal(mine.plan, null); assert.equal(mine.products.ai.plan, "pilot");
+  ok("X09 AI plan is recorded on the shared account but doesn't unlock Docs");
 
   const sub = { id: "sub_1", customer: "cus_x", status: "active", metadata: { user_id: userId, app: "x09-docs" },
     items: { data: [{ price: { id: "price_pro" }, current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400 }] } };
@@ -135,7 +137,7 @@ try {
   // AI rewrite + limits
   r = await api("/api/ai/rewrite", { method: "POST", body: { text: "we fix roof good", instruction: "More professional" } });
   assert.equal(r.status, 200); assert.ok(r.data.text); ok("AI rewrite works");
-  await env.DB.prepare("UPDATE usage SET ai = 200 WHERE user_id = ?").bind(userId).run();
+  await env.DB.prepare("UPDATE usage SET docs = 200 WHERE user_id = ?").bind(userId).run();
   r = await api("/api/ai/draft", { method: "POST", body: { type: "invoice", prompt: "another one please" } });
   assert.equal(r.status, 402); assert.equal(r.data.code, "limit_reached"); ok("monthly AI limit enforced");
   r = await api("/api/docs", { method: "POST", body: { type: "contract" } }); assert.equal(r.status, 201); ok("manual docs still work after AI limit");
@@ -151,9 +153,9 @@ try {
   // Checkout while subscribed → portal
   r = await api("/api/billing/checkout", { method: "POST", body: { plan: "business" } }); assert.match(r.data.url, /portal=1/); ok("subscribers switch plans in the portal");
   const cfg = stripeCalls.find((c) => c.path === "/billing_portal/configurations");
-  assert.ok(cfg && Object.values(cfg.params).includes("price_business") && !Object.values(cfg.params).includes("price_pilot"));
-  assert.equal(stripeCalls.filter((c) => c.path === "/billing_portal/sessions").pop().params.configuration, "bpc_docs");
-  ok("portal only offers X09 Docs plans");
+  assert.ok(cfg && Object.values(cfg.params).includes("price_business") && Object.values(cfg.params).includes("price_pilot"));
+  assert.equal(stripeCalls.filter((c) => c.path === "/billing_portal/sessions").pop().params.configuration, "bpc_x09");
+  ok("one billing portal manages every X09 plan");
 
   // Cancel → read-only
   const del = JSON.stringify({ type: "customer.subscription.deleted", data: { object: { ...sub, status: "canceled" } } });

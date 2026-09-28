@@ -1,12 +1,12 @@
 // Client-facing share links: /d/:shareId — view, accept & e-sign, or decline. No account needed.
-import { json, now, readJson, HttpError } from "./util.js";
-import { getUser } from "./auth.js";
-import { PLANS, ACTIVE_STATUSES } from "./plans.js";
+import { json, now, readJson, HttpError } from "./core/util.js";
+import { getUser } from "./core/auth.js";
+import { PRODUCTS, ACTIVE_STATUSES } from "./core/catalog.js";
 import { TYPES, loadBusiness } from "./docs.js";
 
 async function byShare(env, sid) {
   const r = await env.DB.prepare(
-    "SELECT d.*, u.plan AS owner_plan, u.sub_status AS owner_status FROM docs d JOIN users u ON u.id = d.user_id WHERE d.share_id = ?"
+    "SELECT d.*, s.plan AS owner_plan, s.status AS owner_status FROM docs d LEFT JOIN subscriptions s ON s.user_id = d.user_id AND s.product = 'docs' WHERE d.share_id = ?"
   ).bind(sid).first();
   if (!r || r.status === "void") throw new HttpError(404, "This document isn't available. Ask the sender for a new link.");
   return r;
@@ -33,7 +33,7 @@ export async function viewShared(request, env, sid) {
     await env.DB.prepare("UPDATE docs SET viewed_at = ? WHERE id = ?").bind(now(), r.id).run();
   }
   const biz = await loadBusiness(env, r.user_id);
-  const plan = PLANS[r.owner_plan];
+  const plan = PRODUCTS.docs.plans[r.owner_plan];
   const whiteLabel = !!(plan && plan.whiteLabel && ACTIVE_STATUSES.has(r.owner_status));
   return json({ doc: publicDoc(r), business: biz, branding: !whiteLabel, isOwner: !!isOwner });
 }
