@@ -455,7 +455,7 @@
     } else if (!hasPlan()) {
       h += `<div class="lock-banner">Your plan is inactive — documents are read-only. <button type="button" class="btn-primary sm" data-act="plans">Choose a plan</button></div>`;
     }
-    h += `<fieldset class="fs"><div class="fs-head"><span class="label mono">// Document</span></div><div class="fgrid">
+    h += `<fieldset class="fs"><div class="fs-head"><span class="label">Document</span></div><div class="fgrid">
       ${field("Title", "title", current.title, { full: true, max: 160 })}
       ${field("Date", "issueDate", d.issueDate, { type: "date" })}
       ${field(T.date2, "dueDate", d.dueDate, { type: "date" })}
@@ -463,7 +463,7 @@
       <label class="f${t === "invoice" ? "" : " full"}">Currency<select data-k="currency">${CURRENCIES.map((c) => `<option ${c === d.currency ? "selected" : ""}>${c}</option>`).join("")}</select></label>
     </div></fieldset>`;
 
-    h += `<fieldset class="fs"><div class="fs-head"><span class="label mono">// ${T.to}</span></div><div class="fgrid">
+    h += `<fieldset class="fs"><div class="fs-head"><span class="label">${T.to}</span></div><div class="fgrid">
       ${field("Name", "client.name", d.client.name, { max: 120 })}
       ${field("Company", "client.company", d.client.company, { max: 120 })}
       ${field("Email", "client.email", d.client.email, { type: "email", max: 200 })}
@@ -472,11 +472,11 @@
     </div></fieldset>`;
 
     if (T.sections || d.sections.length) {
-      h += `<fieldset class="fs"><div class="fs-head"><span class="label mono">// ${t === "contract" ? "Clauses" : "Sections"}</span></div><div id="secList"></div>
+      h += `<fieldset class="fs"><div class="fs-head"><span class="label">${t === "contract" ? "Clauses" : "Sections"}</span></div><div id="secList"></div>
         <button type="button" class="add-btn" data-act="add-sec">+ Add ${t === "contract" ? "clause" : "section"}</button></fieldset>`;
     }
     if (T.items || d.items.length) {
-      h += `<fieldset class="fs"><div class="fs-head"><span class="label mono">// ${t === "contract" ? "Fees" : "Line items"}</span></div><div id="itemList"></div>
+      h += `<fieldset class="fs"><div class="fs-head"><span class="label">${t === "contract" ? "Fees" : "Line items"}</span></div><div id="itemList"></div>
         <button type="button" class="add-btn" data-act="add-item">+ Add line</button>
         <div class="fgrid" style="margin-top:12px">
           ${field("Tax %", "taxRate", d.taxRate || "", { type: "number", step: "0.01", min: 0, ph: "0" })}
@@ -488,7 +488,7 @@
       h += `<fieldset class="fs"><button type="button" class="add-btn" data-act="add-item">+ Add a fee table</button></fieldset>`;
     }
 
-    h += `<fieldset class="fs"><div class="fs-head"><span class="label mono">// Details</span></div><div class="fgrid">
+    h += `<fieldset class="fs"><div class="fs-head"><span class="label">Details</span></div><div class="fgrid">
       ${t === "invoice" ? field("How to pay", "payment", d.payment, { area: true, rows: 3, full: true, max: 2000, ph: "Bank transfer, Zelle, or a payment link" }) : ""}
       ${t !== "contract" ? field("Notes", "notes", d.notes, { area: true, rows: 3, full: true, max: 4000 }) + `<div class="ai-row full"><button type="button" class="tool ai" data-ai="notes">✦ Improve</button></div>` : ""}
       ${field("Terms", "terms", d.terms, { area: true, rows: 4, full: true, max: 8000 })}

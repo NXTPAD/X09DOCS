@@ -11,16 +11,16 @@
   <link rel="stylesheet" href="/paper.css" />
   <style>
     :root { --ink: #f2f2f2; --muted: #8a8a8a; --dim: #555; --hair: rgba(255,255,255,.1); --hair-2: rgba(255,255,255,.18);
-      --body: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+      --body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; }
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: #000 radial-gradient(ellipse at 50% -10%, #1c1c1c 0%, #000 60%) fixed; color: var(--ink); font: 15px/1.6 var(--body); -webkit-font-smoothing: antialiased; }
+    body { margin: 0; min-height: 100vh; background: #05060b radial-gradient(60vmax 40vmax at 20% -10%, rgba(139,108,255,.22), transparent 70%) fixed, #05060b; color: var(--ink); font: 15px/1.6 var(--body); -webkit-font-smoothing: antialiased; }
     button { font: inherit; cursor: pointer; }
     .bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--hair); background: rgba(0,0,0,.72); backdrop-filter: blur(12px); }
     .who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
     .who img { height: 30px; max-width: 90px; object-fit: contain; background: #fff; border-radius: 4px; padding: 2px 4px; }
     .who-name { font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .who-sub { font: .66rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 4px; font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 99px; font: 700 .88rem var(--body); white-space: nowrap; }
     .btn-w { border: 0; background: #fff; color: #000; }
     .btn-w:hover { opacity: .88; }
     .btn-o { border: 1px solid var(--hair-2); background: none; color: var(--ink); }
