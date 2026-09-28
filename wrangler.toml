@@ -1,0 +1,42 @@
+name = "x09-docs"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+# Serve at docs.x09hub.com (x09hub.com must be a zone in the same Cloudflare account).
+# Cloudflare creates the DNS record and certificate automatically on deploy.
+routes = [
+  { pattern = "docs.x09hub.com", custom_domain = true }
+]
+
+# The app (served at "/"); /api/* and client links (/d/*) go to the Worker first
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/d/*"]
+
+# Workers AI drafts the documents (same engine as X09 AI)
+[ai]
+binding = "AI"
+
+# Database for accounts, documents, usage.
+# The GitHub deploy finds this database by name and fills in the ID automatically.
+# (Deploying by hand instead? Run: npx wrangler d1 create x09-docs-db, then paste the ID below.)
+[[d1_databases]]
+binding = "DB"
+database_name = "x09-docs-db"
+database_id = "PASTE_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[vars]
+AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+
+# Stripe Price IDs — OPTIONAL. Leave as-is and the app finds the active monthly price of the
+# Stripe products named "X09 Docs Solo", "X09 Docs Pro" and "X09 Docs Business" automatically.
+STRIPE_PRICE_SOLO = "price_REPLACE_ME"
+STRIPE_PRICE_PRO = "price_REPLACE_ME"
+STRIPE_PRICE_BUSINESS = "price_REPLACE_ME"
+
+# Secrets — set with `npx wrangler secret put NAME` (never commit these):
+#   STRIPE_SECRET_KEY       sk_live_... (or sk_test_... while testing)
+#   STRIPE_WEBHOOK_SECRET   whsec_...   (from the webhook endpoint for docs.x09hub.com)

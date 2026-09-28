@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Document</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/paper.css" />
+  <style>
+    :root { --ink: #f2f2f2; --muted: #8a8a8a; --dim: #555; --hair: rgba(255,255,255,.1); --hair-2: rgba(255,255,255,.18);
+      --body: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #000 radial-gradient(ellipse at 50% -10%, #1c1c1c 0%, #000 60%) fixed; color: var(--ink); font: 15px/1.6 var(--body); -webkit-font-smoothing: antialiased; }
+    button { font: inherit; cursor: pointer; }
+    .bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--hair); background: rgba(0,0,0,.72); backdrop-filter: blur(12px); }
+    .who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
+    .who img { height: 30px; max-width: 90px; object-fit: contain; background: #fff; border-radius: 4px; padding: 2px 4px; }
+    .who-name { font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .who-sub { font: .66rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 4px; font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+    .btn-w { border: 0; background: #fff; color: #000; }
+    .btn-w:hover { opacity: .88; }
+    .btn-o { border: 1px solid var(--hair-2); background: none; color: var(--ink); }
+    .btn-o:hover { border-color: rgba(255,255,255,.45); }
+    .btn:disabled { opacity: .45; cursor: default; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 26px 16px 140px; }
+    .banner { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--hair-2); border-radius: 6px; background: rgba(255,255,255,.04); }
+    .banner b { font-weight: 600; }
+    .banner .dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; flex-shrink: 0; box-shadow: 0 0 12px #fff; }
+    .paper { box-shadow: 0 30px 80px rgba(0,0,0,.6); border-radius: 2px; }
+    .actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; justify-content: center; gap: 10px; padding: 14px 16px; padding-bottom: max(14px, env(safe-area-inset-bottom)); border-top: 1px solid var(--hair); background: rgba(0,0,0,.82); backdrop-filter: blur(12px); }
+    .actions[hidden] { display: none; }
+    .actions .btn { height: 46px; min-width: 150px; }
+    .foot { text-align: center; margin-top: 26px; font: .7rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+    .foot a { color: var(--muted); text-decoration: none; }
+    .state { max-width: 460px; margin: 18vh auto; text-align: center; padding: 0 20px; }
+    .state h1 { font-weight: 300; font-size: 2rem; margin: 0 0 8px; }
+    .state p { color: var(--muted); margin: 0; }
+    .spin { width: 28px; height: 28px; margin: 0 auto 16px; border-radius: 50%; border: 2px solid var(--hair-2); border-top-color: #fff; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.75); backdrop-filter: blur(6px); }
+    .modal[hidden] { display: none; }
+    .card { width: 100%; max-width: 440px; padding: 28px 24px 22px; border: 1px solid var(--hair-2); border-radius: 6px; background: #080808; }
+    .card h2 { margin: 0 0 6px; font-weight: 300; font-size: 1.6rem; }
+    .card p { margin: 0 0 16px; color: var(--muted); font-size: .9rem; }
+    .card label { display: block; font: .66rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    .card input[type=text] { display: block; width: 100%; margin-top: 6px; padding: 12px 14px; border: 1px solid var(--hair-2); border-radius: 4px; background: rgba(255,255,255,.03); color: var(--ink); font: 1rem var(--body); outline: 0; }
+    .card input[type=text]:focus { border-color: rgba(255,255,255,.5); }
+    .sig-preview { height: 60px; margin: 12px 0; display: flex; align-items: flex-end; padding: 0 6px 4px; border-bottom: 1px solid #555; font: 500 34px/1 "Caveat", cursive; color: #fff; overflow: hidden; white-space: nowrap; }
+    .check { display: flex !important; gap: 10px; align-items: flex-start; margin: 14px 0; font: .86rem/1.45 var(--body) !important; letter-spacing: 0 !important; text-transform: none !important; color: var(--ink) !important; cursor: pointer; }
+    .check input { margin-top: 3px; width: 16px; height: 16px; accent-color: #fff; flex-shrink: 0; }
+    .err { min-height: 1.2em; margin: 0 0 10px; font-size: .85rem; color: #ff9b9b; }
+    .row { display: flex; gap: 10px; }
+    .row .btn { flex: 1; }
+    .link { background: none; border: 0; color: var(--muted); font-size: .8rem; text-decoration: underline; text-underline-offset: 3px; padding: 10px 0 0; display: block; margin: 0 auto; }
+    @media (max-width: 640px) {
+      .bar { padding: 10px 12px; }
+      .bar .btn { padding: 0 12px; }
+      .bar .btn span { display: none; }
+      .wrap { padding: 14px 8px 130px; }
+      .actions .btn { flex: 1; min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"><div class="state"><div class="spin"></div><p>Loading document…</p></div></div>
+
+  <div class="modal" id="signModal" hidden role="dialog" aria-modal="true" aria-labelledby="signTitle">
+    <form class="card" id="signForm" novalidate>
+      <h2 id="signTitle">Accept &amp; sign</h2>
+      <p id="signSub"></p>
+      <label>Your full name<input type="text" id="signName" autocomplete="name" maxlength="120" /></label>
+      <div class="sig-preview" id="sigPreview"></div>
+      <label class="check"><input type="checkbox" id="signAgree" /> <span id="agreeText"></span></label>
+      <p class="err" id="signErr" role="alert"></p>
+      <div class="row">
+        <button type="button" class="btn btn-o" data-close>Cancel</button>
+        <button type="submit" class="btn btn-w" id="signBtn">Sign</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="print-root" id="printRoot"></div>
+  <script src="/render.js"></script>
+  <script src="/view.js"></script>
+</body>
+</html>
