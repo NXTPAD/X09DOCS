@@ -59,7 +59,25 @@ export async function getUser(request, env) {
   ).bind(await sha256Hex(token), now()).first();
   if (!row) return null;
   row.subs = await loadSubs(env, row.id);
+  applyOwner(env, row);
   return row;
+}
+
+// ---------- Owner accounts ----------
+// Emails listed in the X09_OWNER_EMAILS secret (comma-separated) get the top plan of every
+// product for free — for the X09 owner and team. Set it as an encrypted secret on each Worker
+// (never in code: these repos are public). Nothing is written to the database or Stripe.
+export function isOwner(env, user) {
+  const list = String(env.X09_OWNER_EMAILS || "").toLowerCase().split(",").map((e) => e.trim()).filter(Boolean);
+  return !!user?.email && list.includes(String(user.email).toLowerCase());
+}
+function applyOwner(env, user) {
+  if (!isOwner(env, user)) return;
+  user.owner = true;
+  for (const p of PRODUCT_ORDER) {
+    const order = PRODUCTS[p].order;
+    user.subs[p] = { product: p, plan: order[order.length - 1], status: "active", current_period_end: null, stripe_subscription_id: null, owner: true };
+  }
 }
 
 export async function requireUser(request, env) {
@@ -127,6 +145,7 @@ export function publicUser(user, usage) {
     avatar: user.avatar || null,
     createdAt: user.created_at,
     hasBilling: !!user.stripe_customer_id,
+    owner: !!user.owner,
     products,
     guide: { used: usage.guide, limit: anyPlan ? GUIDE_MONTHLY_LIMIT : 0 },
   };

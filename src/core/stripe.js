@@ -91,6 +91,7 @@ const origin = (request) => new URL(request.url).origin;
 // POST /api/billing/checkout  { plan, product? }  (product defaults to the site you're on)
 export async function checkout(request, env) {
   const user = await requireUser(request, env);
+  if (user.owner) return json({ error: "This is an X09 owner account — every plan is already included." }, 400);
   const body = await readJson(request);
   const product = PRODUCTS[body?.product] ? body.product : SITE;
   const key = body?.plan;

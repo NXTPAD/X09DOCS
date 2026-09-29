@@ -33,6 +33,8 @@ Llama version because Claude costs more per message.
 ### Secrets (set on EACH of the three Workers)
 `ANTHROPIC_API_KEY` (console.anthropic.com → API keys), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
 
+Optional: `X09_OWNER_EMAILS` — comma-separated emails that get the top plan of every product for free (owner / team accounts). Add it as an **encrypted secret** (never in code — the repos are public). Remove an email to take access away.
+
 ### Stripe
 All six products live in the same Stripe account (names above; each with a recurring monthly price). One webhook endpoint is
 enough — e.g. `https://x09hub.com/api/stripe/webhook` — with events `checkout.session.completed`,
