@@ -19,6 +19,7 @@
     { key: "ai", name: "X09 AI", host: "ai.x09hub.com", url: "https://ai.x09hub.com", orb: "AI", logo: "/x09/logo-ai.svg", note: "AI co-pilot · chat" },
     { key: "docs", name: "X09 Docs", host: "docs.x09hub.com", url: "https://docs.x09hub.com", orb: "DOC", logo: "/x09/logo-docs.svg", note: "AI invoices & contracts" },
     { key: "defense", name: "X09 Defense", host: "x09hub.com/defense", url: "https://x09hub.com/defense/", orb: "DEF", logo: "/x09/logo-defense.svg", note: "Cyber defense toolkit" },
+    { key: "dex", name: "X09 DEX", host: "dex.x09hub.com", url: "https://dex.x09hub.com", orb: "DEX", logo: "/x09/logo-dex.svg", note: "Swap, explore & launch tokens" },
   ];
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (n) => Number(n || 0).toLocaleString();
