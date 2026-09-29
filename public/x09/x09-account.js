@@ -8,7 +8,7 @@
      X09.init({ site: "hub" | "ai" | "docs", onUser(user) })
      X09.openAccount()          profile, photo, every X09 plan, billing, password, delete
      X09.openAuth("login"|"signup")
-     X09.mountSwitcher(el)      the app switcher (Hub / AI / Docs)
+     X09.mountSwitcher(el)      the app switcher (Hub / AI / Docs / Defense)
      X09.mountLogo(el, size)    the animated X09 logo
      X09.paintAvatar(el, user)  profile photo or initials on any element
    ============================================================ */
@@ -18,6 +18,7 @@
     { key: "hub", name: "X09 Hub", host: "x09hub.com", url: "https://x09hub.com", orb: "HUB", logo: "/x09/logo.svg", note: "Start here · your X09 account" },
     { key: "ai", name: "X09 AI", host: "ai.x09hub.com", url: "https://ai.x09hub.com", orb: "AI", logo: "/x09/logo-ai.svg", note: "AI co-pilot · chat" },
     { key: "docs", name: "X09 Docs", host: "docs.x09hub.com", url: "https://docs.x09hub.com", orb: "DOC", logo: "/x09/logo-docs.svg", note: "AI invoices & contracts" },
+    { key: "defense", name: "X09 Defense", host: "x09hub.com/defense", url: "https://x09hub.com/defense/", orb: "DEF", logo: "/x09/logo-defense.svg", note: "Cyber defense toolkit" },
   ];
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (n) => Number(n || 0).toLocaleString();
