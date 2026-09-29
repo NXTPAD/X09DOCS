@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /api/
+Disallow: /d/
+Disallow: /view
+
+Sitemap: https://docs.x09hub.com/sitemap.xml
