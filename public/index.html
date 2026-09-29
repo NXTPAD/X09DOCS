@@ -40,11 +40,8 @@
 
     <main class="main" data-x09-bg>
       <header class="topbar">
+        <a class="top-logo only-mobile" href="#/" aria-label="X09 Docs home"><span data-x09-logo="32"></span></a>
         <a class="wordmark x09-wordmark" href="#/">X09<small>DOCS</small></a>
-        <nav class="topnav only-mobile" aria-label="Sections">
-          <a href="#/" data-nav="home">New</a>
-          <a href="#/docs" data-nav="docs">Docs</a>
-        </nav>
         <div class="title" id="topTitle"></div>
         <div class="hud-right">
           <span class="save-state mono" id="saveState"></span>
@@ -69,6 +66,10 @@
           </div>
         </div>
       </header>
+      <nav class="topnav tabstrip only-mobile" aria-label="Sections">
+        <a href="#/" data-nav="home">New</a>
+        <a href="#/docs" data-nav="docs">Docs</a>
+      </nav>
 
       <!-- ============ HOME ============ -->
       <section class="view view-home" id="viewHome" data-x09-bg>
