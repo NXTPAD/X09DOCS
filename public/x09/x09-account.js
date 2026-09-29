@@ -15,9 +15,9 @@
 (() => {
   "use strict";
   const SITES = [
-    { key: "hub", name: "X09 Hub", host: "x09hub.com", url: "https://x09hub.com", orb: "HUB", note: "Start here · your X09 account" },
-    { key: "ai", name: "X09 AI", host: "ai.x09hub.com", url: "https://ai.x09hub.com", orb: "AI", note: "AI co-pilot · chat" },
-    { key: "docs", name: "X09 Docs", host: "docs.x09hub.com", url: "https://docs.x09hub.com", orb: "DOC", note: "AI invoices & contracts" },
+    { key: "hub", name: "X09 Hub", host: "x09hub.com", url: "https://x09hub.com", orb: "HUB", logo: "/x09/logo.svg", note: "Start here · your X09 account" },
+    { key: "ai", name: "X09 AI", host: "ai.x09hub.com", url: "https://ai.x09hub.com", orb: "AI", logo: "/x09/logo-ai.svg", note: "AI co-pilot · chat" },
+    { key: "docs", name: "X09 Docs", host: "docs.x09hub.com", url: "https://docs.x09hub.com", orb: "DOC", logo: "/x09/logo-docs.svg", note: "AI invoices & contracts" },
   ];
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (n) => Number(n || 0).toLocaleString();
@@ -185,7 +185,7 @@
         : meter("AI drafts", s.usage.docs, s.usage.docsLimit);
       const here = X.site === prod.key;
       return `<div class="x09-prod${active ? " active" : ""}">
-        <div class="x09-prod-top"><span class="x09-switch-orb">${prod.key === "ai" ? "AI" : "DOC"}</span>
+        <div class="x09-prod-top"><span class="x09-switch-orb"><img src="/x09/logo-${prod.key === "ai" ? "ai" : "docs"}.svg" alt="" width="30" height="30" /></span>
           <div class="grow"><b>${esc(prod.name)}</b><p class="pf-sub">${status}</p></div>
           <span class="x09-chip${active ? " on" : ""}">${active ? "Active" : "Inactive"}</span></div>
         ${meters}
@@ -347,7 +347,7 @@
       menu.innerHTML = `<div class="x09-switch-head">X09 · one account, every app</div>` + SITES.map((s) => {
         const p = u?.products?.[s.key];
         const chip = s.key === X.site ? '<span class="x09-chip on">Here</span>' : p?.plan ? `<span class="x09-chip on">${esc(p.planName)}</span>` : "";
-        return `<a class="x09-switch-item${s.key === X.site ? " here" : ""}" href="${s.url}" role="menuitem"><span class="x09-switch-orb">${s.orb}</span><div><b>${s.name}</b><span>${s.note}</span></div>${chip}</a>`;
+        return `<a class="x09-switch-item${s.key === X.site ? " here" : ""}" href="${s.url}" role="menuitem"><span class="x09-switch-orb"><img src="${s.logo}" alt="" width="30" height="30" /></span><div><b>${s.name}</b><span>${s.note}</span></div>${chip}</a>`;
       }).join("") + (u ? `<button class="am-item am-strong" data-x09-account style="margin-top:6px">Your X09 account & plans</button>` : `<button class="am-item am-strong" data-x09-signin style="margin-top:6px">Sign in to X09</button>`);
       menu.querySelector("[data-x09-account]")?.addEventListener("click", () => { menu.hidden = true; X.openAccount(); });
       menu.querySelector("[data-x09-signin]")?.addEventListener("click", () => { menu.hidden = true; X.openAuth("login"); });

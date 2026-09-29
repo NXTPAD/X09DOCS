@@ -460,7 +460,8 @@ body:not(.home):not([data-view]) .composer { padding-left: 44px !important; }
 .x09-prod.active { background: #000 !important; border: 1px solid #fff !important; }
 .x09-chip { border: 1px solid var(--hair-2) !important; background: #000 !important; text-transform: uppercase; letter-spacing: .06em; font-size: .64rem !important; }
 .x09-chip.on { background: #fff !important; color: #000 !important; border-color: #fff !important; }
-.x09-switch-orb { background: #fff !important; color: #000 !important; box-shadow: none !important; }
+.x09-switch-orb { background: #000 !important; color: #fff !important; box-shadow: none !important; border: 1px solid rgba(255,255,255,.45); }
+.x09-switch-orb img { display: block; width: 30px; height: 30px; }
 .x09-switch-item.here { background: #111 !important; outline: 1px solid var(--hair-2); }
 .x09-id { background: #000 !important; border: 1px solid var(--hair-2) !important; color: var(--muted) !important; }
 .pf-avatar { box-shadow: 0 0 0 1px #000, 0 0 0 2px #fff !important; }
