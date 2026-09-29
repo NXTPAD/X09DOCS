@@ -217,7 +217,7 @@
       });
       // Double-click / double-tap empty space → a new moon drops in
       addEventListener("dblclick", (e) => {
-        if (this.reduce || !this.bgTarget(e.target) || this.bodies.length > 40) return;
+        if (!this.o.bodies || this.reduce || !this.bgTarget(e.target) || this.bodies.length > 40) return;
         const b = this.addBody(e.clientX, e.clientY, Math.random() < 0.5 ? "moon" : "ringed");
         b.vx = rand(-60, 60); b.vy = rand(-60, 60);
         this.burst(e.clientX, e.clientY, 14);

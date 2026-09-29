@@ -3,7 +3,7 @@
   "use strict";
 
   // ---------- X09 shared physics + account kit (public/x09/) ----------
-  X09Space.start({ density: 0.8, opacity: 0.75 });
+  X09Space.start({ density: 0.8, opacity: 0.75, bodies: false });
   X09.init({ site: "docs" });
 
   // =====================================================================
